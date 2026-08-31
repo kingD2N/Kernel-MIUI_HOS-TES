@@ -18,6 +18,7 @@ on:
            - LazyGoogle_ORI
            - melt-rebase-4LazyGoogle
            - melt-MIX
+           - MIUI&HOS
            
       modules_branch:
         description: "Branch for the LineageOS modules repo (unaffected by kernel_source/kernel_branch above - currently defaults to lineage-23.2)"
