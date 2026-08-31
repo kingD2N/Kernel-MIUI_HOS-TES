@@ -651,7 +651,6 @@ jobs:
           | 📱 Device | POCO F4 GT (ingres) • Redmi K50G (ingres) |
           | 🟠 ROM Support | MIUI 14 (stock) |
           | 🧪 Cek Kompatibilitas MIUI 14 | ${{ env.MIUI14_COMPAT_MATCH }} simbol cocok / ${{ env.MIUI14_COMPAT_MISMATCH }} tidak cocok (vs modul asli V14.0.23.8.14 -- lihat artifact miui14-compat-report) |
-          | ℹ️ Catatan | Zip ini cuma ganti kernel Image -- TIDAK mengganti/memasang ulang module vendor (.ko) apa pun. Kompatibilitas nyata bergantung pada partisi vendor MIUI 14 yang SUDAH terpasang di device, bukan pada apa pun di workflow ini. Belum diverifikasi lewat pencocokan simbol/CRC terhadap .ko asli MIUI 14 -- lihat repo utk update. |
           | 🖥️ Kernel Name | ${KERNEL_NAME} |
           | 🧬 Kernel Base | android12-${KERNEL_BASE_VERSION} |
           | 🛠️ Build Scope | ZIP |
