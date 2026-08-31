@@ -10,12 +10,12 @@ on:
         default: "https://github.com/kingD2N/kernel_source_Melt_xiaomi_ingres"
 
       kernel_branch:
-        description: "Branch on kernel_source above. Default MIUI&HOS = tree yang sudah diaudit (config vendor/ingres_GKI.config sudah digabung dgn 426-baris config resmi Xiaomi ingres-s-oss)."
+        description: "Branch on kernel_source above. Default MIUI_HOS = tree yang sudah diaudit (config vendor/ingres_GKI.config sudah digabung dgn 426-baris config resmi Xiaomi ingres-s-oss)."
         required: true
         type: choice
         default: "MIUI_HOS"
         options :
-           - MIUI&HOS
+           - MIUI_HOS
            - LazyGoogle_ORI
            - melt-rebase-4LazyGoogle
            - melt-MIX
