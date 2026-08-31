@@ -484,6 +484,20 @@ jobs:
           echo "ccache status after build:"
           ccache -s
 
+      - name: Verifikasi kompatibilitas simbol vs modul asli MIUI 14
+        run: |
+          # verify_miui14_compat.py + miui14_reference_symvers.json harus ada di root
+          # repo workflow ini (kingD2N/Kernel), sudah ter-checkout di step "Check Out"
+          # paling awal. Referensi CRC diekstrak langsung dari dump firmware nyata
+          # (missi_phone_cn-user-13-TKQ1.220807.001-V14.0.23.8.14.DEV-release-keys,
+          # vermagic 5.10.81-gki-g83b69c4d8214) -- bukan tebakan.
+          python3 "${{ github.workspace }}/verify_miui14_compat.py" "${SOC}/out/Module.symvers" | tee /tmp/miui14_compat_report.txt
+          MISMATCH_COUNT=$(grep -c "^  " /tmp/miui14_compat_report.txt || true)
+          COCOK_LINE=$(grep "Cocok " /tmp/miui14_compat_report.txt | grep -oE '[0-9]+' | head -1)
+          TIDAK_COCOK_LINE=$(grep "TIDAK COCOK" /tmp/miui14_compat_report.txt | grep -oE '[0-9]+' | head -1)
+          echo "MIUI14_COMPAT_MATCH=${COCOK_LINE:-?}" >> $GITHUB_ENV
+          echo "MIUI14_COMPAT_MISMATCH=${TIDAK_COCOK_LINE:-?}" >> $GITHUB_ENV
+
       - name: Save ccache
         if: ${{ always() && steps.ccache-restore.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v5
@@ -497,6 +511,14 @@ jobs:
         with:
           name: resolved-defconfig-${{ inputs.ksu_type }}
           path: resolved_defconfig.txt
+          if-no-files-found: warn
+
+      - name: Upload laporan kompatibilitas MIUI 14
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: miui14-compat-report
+          path: /tmp/miui14_compat_report.txt
           if-no-files-found: warn
 
       - name: Build Re-Kernel (eBPF)
@@ -628,6 +650,7 @@ jobs:
           |:---|:---|
           | 📱 Device | POCO F4 GT (ingres) • Redmi K50G (ingres) |
           | 🟠 ROM Support | MIUI 14 (stock) |
+          | 🧪 Cek Kompatibilitas MIUI 14 | ${{ env.MIUI14_COMPAT_MATCH }} simbol cocok / ${{ env.MIUI14_COMPAT_MISMATCH }} tidak cocok (vs modul asli V14.0.23.8.14 -- lihat artifact miui14-compat-report) |
           | ℹ️ Catatan | Zip ini cuma ganti kernel Image -- TIDAK mengganti/memasang ulang module vendor (.ko) apa pun. Kompatibilitas nyata bergantung pada partisi vendor MIUI 14 yang SUDAH terpasang di device, bukan pada apa pun di workflow ini. Belum diverifikasi lewat pencocokan simbol/CRC terhadap .ko asli MIUI 14 -- lihat repo utk update. |
           | 🖥️ Kernel Name | ${KERNEL_NAME} |
           | 🧬 Kernel Base | android12-${KERNEL_BASE_VERSION} |
