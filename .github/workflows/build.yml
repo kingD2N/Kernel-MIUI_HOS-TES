@@ -45,10 +45,10 @@ on:
         type: choice
         default: 5.10.267-MIUI14™-KERNEL
         options:
-          - 5.10.267-MIUI14™-KERNEL
-          - 5.10.266-Melt-KERNEL
-          - 5.10.266-MIX™-KERNEL
-          - 5.10.267-LazyGoogle-KERNEL
+          - MIUI14™-KERNEL
+          - Melt-KERNEL
+          - MIX™-KERNEL
+          - LazyGoogle-KERNEL
 
       susfs:
         description: "Add susfs support"
