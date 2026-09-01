@@ -87,7 +87,7 @@ on:
         default: true
 
       nomount:
-        description: "Add NoMount support (kernel VFS path redirection/injection, kingD2N/nomount - research/dev project per upstream README; may conflict with susfs since both patch fs/namei.c)"
+        description: "Add NoMount support (kernel VFS path redirection/injection, maxsteeel/nomount@dev - auto-updates to whatever's newest on that branch each run; may conflict with susfs since both patch fs/namei.c)"
         required: true
         type: boolean
         default: true
@@ -118,20 +118,21 @@ jobs:
       - name: Cek kombinasi opsi yang diketahui bentrok
         run: |
           # susfs dan nomount (maxsteeel/nomount@dev) sama-sama menempatkan
-          # patch-nya di fs/namei.c (juga fs/stat.c untuk SUS_KSTAT). Peringatan
-          # soal ini sudah ada di step NoMount sendiri, tapi sebelumnya cuma
-          # muncul SEBAGAI WARNING di tengah build -- build tetap lanjut ~8 menit
-          # lagi sebelum akhirnya gagal dengan error kconfig yang membingungkan
-          # ("No configuration exists for this target on this architecture" saat
-          # merge vendor/xiaomi_GKI.config), jauh dari akar masalah sebenarnya.
+          # patch-nya di fs/namei.c (juga fs/stat.c untuk SUS_KSTAT) dan
+          # diketahui bentrok. Sebelumnya ini hard-fail -- sekarang otomatis
+          # pilih salah satu (susfs menang, karena lebih inti untuk KernelSU-
+          # Next/root-hiding) supaya tidak perlu diingat manual tiap trigger.
           #
-          # Sampai konflik ini benar-benar diperbaiki di source nomount/susfs
-          # (di luar kendali workflow ini -- nomount diambil live dari repo
-          # pihak ketiga), gerbang ini menghentikan build DALAM HITUNGAN DETIK
-          # dengan pesan yang jelas, bukan menunggu gagal di tengah jalan.
+          # Ini TIDAK mengubah cara nomount sendiri di-fetch -- kalau susfs
+          # mati/nomount yang jalan, mekanismenya tetap sama persis: live-pull
+          # dari branch "dev" repo maxsteeel/nomount setiap kali build, tidak
+          # dikunci ke commit tertentu, jadi otomatis ikut update apa pun yang
+          # devnya push ke branch itu.
           if [[ "${{ inputs.susfs }}" == true && "${{ inputs.nomount }}" == true ]]; then
-            echo "::error::susfs dan nomount TIDAK BISA diaktifkan bersamaan -- keduanya menempatkan patch di file kernel yang sama (fs/namei.c, fs/stat.c) dan diketahui bentrok. Pilih salah satu saja, lalu jalankan ulang. (Kalau Anda sudah memperbaiki konflik ini di source nomount/susfs sendiri dan yakin aman, hapus blok pengecekan ini.)"
-            exit 1
+            echo "::warning::susfs dan nomount sama-sama diminta aktif, tapi keduanya diketahui bentrok (fs/namei.c, fs/stat.c). susfs diprioritaskan -- nomount dinonaktifkan otomatis untuk build ini. Kalau memang mau pakai nomount, matikan susfs dan jalankan ulang."
+            echo "EFFECTIVE_NOMOUNT=false" >> $GITHUB_ENV
+          else
+            echo "EFFECTIVE_NOMOUNT=${{ inputs.nomount }}" >> $GITHUB_ENV
           fi
 
       - name: Free up disk space
@@ -357,7 +358,7 @@ jobs:
             echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> arch/arm64/configs/gki_defconfig
           fi
 
-          if [[ "${{ inputs.nomount }}" == true ]]; then
+          if [[ "${{ env.EFFECTIVE_NOMOUNT }}" == true ]]; then
             echo "::group::NoMount integration"
             if [[ "${{ inputs.susfs }}" == true ]]; then
               echo "::warning::susfs and nomount are both enabled - susfs's SUS_KSTAT patches fs/stat.c, which nomount's own VFS hooks may also touch. If anything below fails, try disabling one to isolate it."
@@ -370,7 +371,15 @@ jobs:
             # bash install convention KernelSU/KernelSU-Next/SukiSU-Ultra all use
             # above in this same job, so integrate the same way rather than
             # hunting for a static patch that no longer exists.
-            curl -LSs "https://raw.githubusercontent.com/kingD2N/nomount/master/kernel/setup.sh" | bash
+            NOMOUNT_COMMIT=$(git ls-remote https://github.com/maxsteeel/nomount.git refs/heads/dev | cut -f1 | cut -c1-7)
+            if [[ -z "$NOMOUNT_COMMIT" ]]; then
+              echo "::warning::Could not resolve maxsteeel/nomount's dev branch HEAD via git ls-remote - continuing anyway, but the release notes won't show a commit hash for this run."
+              NOMOUNT_COMMIT="unknown"
+            fi
+            echo "NOMOUNT_COMMIT=${NOMOUNT_COMMIT}" >> $GITHUB_ENV
+            echo "==> NoMount: using maxsteeel/nomount@dev (${NOMOUNT_COMMIT})"
+
+            curl -LSs "https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh" | bash -s dev
             echo "CONFIG_NOMOUNT=y" >> arch/arm64/configs/gki_defconfig
             echo "::endgroup::"
           fi
@@ -607,7 +616,7 @@ jobs:
             ZIP_NAME="${ZIP_NAME}_SuSFS"
           fi
 
-          if [[ "${{ inputs.nomount }}" == true ]]; then
+          if [[ "${{ env.EFFECTIVE_NOMOUNT }}" == true ]]; then
             ZIP_NAME="${ZIP_NAME}_NoMount"
           fi
 
@@ -663,8 +672,8 @@ jobs:
             droidspaces_checkbox="Unsupported"
           fi
 
-          if [[ "${{ inputs.nomount }}" == true ]]; then
-            nomount_checkbox="Supported (research/dev - kingD2N/nomount)"
+          if [[ "${{ env.EFFECTIVE_NOMOUNT }}" == true ]]; then
+            nomount_checkbox="Supported (maxsteeel/nomount@dev@${NOMOUNT_COMMIT})"
           else
             nomount_checkbox="Unsupported"
           fi
