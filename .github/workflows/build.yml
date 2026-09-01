@@ -115,6 +115,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Cek kombinasi opsi yang diketahui bentrok
+        run: |
+          # susfs dan nomount (maxsteeel/nomount@dev) sama-sama menempatkan
+          # patch-nya di fs/namei.c (juga fs/stat.c untuk SUS_KSTAT). Peringatan
+          # soal ini sudah ada di step NoMount sendiri, tapi sebelumnya cuma
+          # muncul SEBAGAI WARNING di tengah build -- build tetap lanjut ~8 menit
+          # lagi sebelum akhirnya gagal dengan error kconfig yang membingungkan
+          # ("No configuration exists for this target on this architecture" saat
+          # merge vendor/xiaomi_GKI.config), jauh dari akar masalah sebenarnya.
+          #
+          # Sampai konflik ini benar-benar diperbaiki di source nomount/susfs
+          # (di luar kendali workflow ini -- nomount diambil live dari repo
+          # pihak ketiga), gerbang ini menghentikan build DALAM HITUNGAN DETIK
+          # dengan pesan yang jelas, bukan menunggu gagal di tengah jalan.
+          if [[ "${{ inputs.susfs }}" == true && "${{ inputs.nomount }}" == true ]]; then
+            echo "::error::susfs dan nomount TIDAK BISA diaktifkan bersamaan -- keduanya menempatkan patch di file kernel yang sama (fs/namei.c, fs/stat.c) dan diketahui bentrok. Pilih salah satu saja, lalu jalankan ulang. (Kalau Anda sudah memperbaiki konflik ini di source nomount/susfs sendiri dan yakin aman, hapus blok pengecekan ini.)"
+            exit 1
+          fi
+
       - name: Free up disk space
         run: |
           # Kernel build + 16GB swap file + multiple repo clones can exceed
