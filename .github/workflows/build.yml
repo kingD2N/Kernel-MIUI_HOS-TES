@@ -45,10 +45,10 @@ on:
         type: choice
         default: 5.10.267-MIUI14™-KERNEL
         options:
-          - MIUI14™-KERNEL
-          - Melt-KERNEL
-          - MIX™-KERNEL
-          - LazyGoogle-KERNEL
+          - 5.10.267-MIUI14™-KERNEL
+          - 5.10.266-Melt-KERNEL
+          - 5.10.266-MIX™-KERNEL
+          - 5.10.267-LazyGoogle-KERNEL
 
       susfs:
         description: "Add susfs support"
@@ -87,7 +87,7 @@ on:
         default: true
 
       nomount:
-        description: "Add NoMount support (kernel VFS path redirection/injection, maxsteeel/nomount@dev - auto-updates to whatever's newest on that branch each run; may conflict with susfs since both patch fs/namei.c)"
+        description: "Add NoMount support (kernel VFS path redirection/injection, kingD2N/nomount - research/dev project per upstream README; may conflict with susfs since both patch fs/namei.c)"
         required: true
         type: boolean
         default: true
@@ -114,26 +114,6 @@ jobs:
       checks: read
     steps:
       - uses: actions/checkout@v7
-
-      - name: Cek kombinasi opsi yang diketahui bentrok
-        run: |
-          # susfs dan nomount (maxsteeel/nomount@dev) sama-sama menempatkan
-          # patch-nya di fs/namei.c (juga fs/stat.c untuk SUS_KSTAT) dan
-          # diketahui bentrok. Sebelumnya ini hard-fail -- sekarang otomatis
-          # pilih salah satu (susfs menang, karena lebih inti untuk KernelSU-
-          # Next/root-hiding) supaya tidak perlu diingat manual tiap trigger.
-          #
-          # Ini TIDAK mengubah cara nomount sendiri di-fetch -- kalau susfs
-          # mati/nomount yang jalan, mekanismenya tetap sama persis: live-pull
-          # dari branch "dev" repo maxsteeel/nomount setiap kali build, tidak
-          # dikunci ke commit tertentu, jadi otomatis ikut update apa pun yang
-          # devnya push ke branch itu.
-          if [[ "${{ inputs.susfs }}" == true && "${{ inputs.nomount }}" == true ]]; then
-            echo "::warning::susfs dan nomount sama-sama diminta aktif, tapi keduanya diketahui bentrok (fs/namei.c, fs/stat.c). susfs diprioritaskan -- nomount dinonaktifkan otomatis untuk build ini. Kalau memang mau pakai nomount, matikan susfs dan jalankan ulang."
-            echo "EFFECTIVE_NOMOUNT=false" >> $GITHUB_ENV
-          else
-            echo "EFFECTIVE_NOMOUNT=${{ inputs.nomount }}" >> $GITHUB_ENV
-          fi
 
       - name: Free up disk space
         run: |
@@ -182,15 +162,6 @@ jobs:
           rm -rf ${SOC}/arch/arm64/boot/dts/vendor
           git clone --depth=1 -b ${{ inputs.devicetree_branch }} https://github.com/Ingres-Centre/android_kernel_xiaomi_${SOC}-devicetrees.git ${SOC}/arch/arm64/boot/dts/vendor \
             || git clone --depth=1 https://github.com/Ingres-Centre/android_kernel_xiaomi_${SOC}-devicetrees.git ${SOC}/arch/arm64/boot/dts/vendor
-
-      - name: Terapkan ulang override melt-MIX (anti-regresi config)
-        run: |
-          # ingres_GKI.config sudah 2x kehilangan CONFIG_MI_CHARGER_M81 dan
-          # override ARCH_CAPE/ARCH_DIWALI setiap kali di-sync ulang dari
-          # source resmi Xiaomi. apply_melt_overrides.sh (idempotent, sudah
-          # diuji 4 skenario) memastikan ini otomatis benar tiap build,
-          # tidak lagi bergantung diingat manual sebelum push.
-          bash "${{ github.workspace }}/apply_melt_overrides.sh" "${SOC}/arch/arm64/configs/vendor/ingres_GKI.config"
 
       - name: Download LLVM (latest stable release)
         run: |
@@ -358,7 +329,7 @@ jobs:
             echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> arch/arm64/configs/gki_defconfig
           fi
 
-          if [[ "${{ env.EFFECTIVE_NOMOUNT }}" == true ]]; then
+          if [[ "${{ inputs.nomount }}" == true ]]; then
             echo "::group::NoMount integration"
             if [[ "${{ inputs.susfs }}" == true ]]; then
               echo "::warning::susfs and nomount are both enabled - susfs's SUS_KSTAT patches fs/stat.c, which nomount's own VFS hooks may also touch. If anything below fails, try disabling one to isolate it."
@@ -371,15 +342,7 @@ jobs:
             # bash install convention KernelSU/KernelSU-Next/SukiSU-Ultra all use
             # above in this same job, so integrate the same way rather than
             # hunting for a static patch that no longer exists.
-            NOMOUNT_COMMIT=$(git ls-remote https://github.com/maxsteeel/nomount.git refs/heads/dev | cut -f1 | cut -c1-7)
-            if [[ -z "$NOMOUNT_COMMIT" ]]; then
-              echo "::warning::Could not resolve maxsteeel/nomount's dev branch HEAD via git ls-remote - continuing anyway, but the release notes won't show a commit hash for this run."
-              NOMOUNT_COMMIT="unknown"
-            fi
-            echo "NOMOUNT_COMMIT=${NOMOUNT_COMMIT}" >> $GITHUB_ENV
-            echo "==> NoMount: using maxsteeel/nomount@dev (${NOMOUNT_COMMIT})"
-
-            curl -LSs "https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh" | bash -s dev
+            curl -LSs "https://raw.githubusercontent.com/kingD2N/nomount/master/kernel/setup.sh" | bash
             echo "CONFIG_NOMOUNT=y" >> arch/arm64/configs/gki_defconfig
             echo "::endgroup::"
           fi
@@ -616,7 +579,7 @@ jobs:
             ZIP_NAME="${ZIP_NAME}_SuSFS"
           fi
 
-          if [[ "${{ env.EFFECTIVE_NOMOUNT }}" == true ]]; then
+          if [[ "${{ inputs.nomount }}" == true ]]; then
             ZIP_NAME="${ZIP_NAME}_NoMount"
           fi
 
@@ -672,8 +635,8 @@ jobs:
             droidspaces_checkbox="Unsupported"
           fi
 
-          if [[ "${{ env.EFFECTIVE_NOMOUNT }}" == true ]]; then
-            nomount_checkbox="Supported (maxsteeel/nomount@dev@${NOMOUNT_COMMIT})"
+          if [[ "${{ inputs.nomount }}" == true ]]; then
+            nomount_checkbox="Supported (research/dev - kingD2N/nomount)"
           else
             nomount_checkbox="Unsupported"
           fi
@@ -688,7 +651,6 @@ jobs:
           | 📱 Device | POCO F4 GT (ingres) • Redmi K50G (ingres) |
           | 🟠 ROM Support | MIUI 14 (stock) |
           | 🧪 Cek Kompatibilitas MIUI 14 | ${{ env.MIUI14_COMPAT_MATCH }} simbol cocok / ${{ env.MIUI14_COMPAT_MISMATCH }} tidak cocok (vs modul asli V14.0.23.8.14 -- lihat artifact miui14-compat-report) |
-          | ℹ️ Catatan | Zip ini cuma ganti kernel Image -- TIDAK mengganti/memasang ulang module vendor (.ko) apa pun. Kompatibilitas nyata bergantung pada partisi vendor MIUI 14 yang SUDAH terpasang di device, bukan pada apa pun di workflow ini. Belum diverifikasi lewat pencocokan simbol/CRC terhadap .ko asli MIUI 14 -- lihat repo utk update. |
           | 🖥️ Kernel Name | ${KERNEL_NAME} |
           | 🧬 Kernel Base | android12-${KERNEL_BASE_VERSION} |
           | 🛠️ Build Scope | ZIP |
