@@ -45,10 +45,10 @@ on:
         type: choice
         default: 5.10.267-MIUI14™-KERNEL
         options:
-          - 5.10.267-MIUI14™-KERNEL
-          - 5.10.266-Melt-KERNEL
-          - 5.10.266-MIX™-KERNEL
-          - 5.10.267-LazyGoogle-KERNEL
+          - MIUI14™-KERNEL
+          - Melt-KERNEL
+          - MIX™-KERNEL
+          - LazyGoogle-KERNEL
 
       susfs:
         description: "Add susfs support"
@@ -162,6 +162,15 @@ jobs:
           rm -rf ${SOC}/arch/arm64/boot/dts/vendor
           git clone --depth=1 -b ${{ inputs.devicetree_branch }} https://github.com/Ingres-Centre/android_kernel_xiaomi_${SOC}-devicetrees.git ${SOC}/arch/arm64/boot/dts/vendor \
             || git clone --depth=1 https://github.com/Ingres-Centre/android_kernel_xiaomi_${SOC}-devicetrees.git ${SOC}/arch/arm64/boot/dts/vendor
+
+      - name: Terapkan ulang override melt-MIX (anti-regresi config)
+        run: |
+          # ingres_GKI.config sudah 2x kehilangan CONFIG_MI_CHARGER_M81 dan
+          # override ARCH_CAPE/ARCH_DIWALI setiap kali di-sync ulang dari
+          # source resmi Xiaomi. apply_melt_overrides.sh (idempotent, sudah
+          # diuji 4 skenario) memastikan ini otomatis benar tiap build,
+          # tidak lagi bergantung diingat manual sebelum push.
+          bash "${{ github.workspace }}/apply_melt_overrides.sh" "${SOC}/arch/arm64/configs/vendor/ingres_GKI.config"
 
       - name: Download LLVM (latest stable release)
         run: |
@@ -650,6 +659,8 @@ jobs:
           |:---|:---|
           | 📱 Device | POCO F4 GT (ingres) • Redmi K50G (ingres) |
           | 🟠 ROM Support | MIUI 14 (stock) |
+          | 🧪 Cek Kompatibilitas MIUI 14 | ${{ env.MIUI14_COMPAT_MATCH }} simbol cocok / ${{ env.MIUI14_COMPAT_MISMATCH }} tidak cocok (vs modul asli V14.0.23.8.14 -- lihat artifact miui14-compat-report) |
+          | ℹ️ Catatan | Zip ini cuma ganti kernel Image -- TIDAK mengganti/memasang ulang module vendor (.ko) apa pun. Kompatibilitas nyata bergantung pada partisi vendor MIUI 14 yang SUDAH terpasang di device, bukan pada apa pun di workflow ini. Belum diverifikasi lewat pencocokan simbol/CRC terhadap .ko asli MIUI 14 -- lihat repo utk update. |
           | 🖥️ Kernel Name | ${KERNEL_NAME} |
           | 🧬 Kernel Base | android12-${KERNEL_BASE_VERSION} |
           | 🛠️ Build Scope | ZIP |
